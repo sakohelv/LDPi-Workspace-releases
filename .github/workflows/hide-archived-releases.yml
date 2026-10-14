@@ -1,4 +1,4 @@
-name: Hide archived releases before v2.0.2
+name: Hide archived releases before v2.0.3
 on:
   workflow_dispatch:
 permissions:
@@ -19,13 +19,13 @@ jobs:
           import os, json, urllib.request, urllib.error, time
           REPO = 'sakohelv/LDPi-Workspace-releases'
           assert os.environ['GITHUB_REPOSITORY'] == REPO
-          # Private backup run 38374451006 completed successfully before this
-          # manual workflow was committed: 1 release, 3 files, 252033743 bytes.
-          # Manifest SHA256: 2451f8a30cdd9aa12df0a5ca342c2b44e7edd042747e800f8600255696736764
+          # Private backup run 38601163265 completed successfully before this
+          # manual workflow was committed: 1 release, 3 files, 252034695 bytes.
+          # Manifest SHA256: 7b547e7925bb78aeb771be631454b216faab28b6399348156297e83fe6b7c187
           # Drafts are reversible and accessible only to repository writers.
           # This workflow does not delete releases, tags or files.
-          OLD = {'v2.0.1':411454549}
-          NEW = {'latest.yml':(365,'sha256:eb685b67e189cdad4a9e3a474c04fc81ad13815118ba971a51191687783f55a7'),'LDPi-Workspace-Setup-2.0.2-x64.exe':(251772006,'sha256:2b6e48f9849ae426f753af758517e36b162b9f66bf854493a62b7ca6e5c6fa81'),'LDPi-Workspace-Setup-2.0.2-x64.exe.blockmap':(262324,'sha256:8e0872d3ae1547e6f51a0d5ea84254f389c3acc5a881a5655660aa811bcd99be')}
+          OLD = {'v2.0.2':411491866}
+          NEW = {'latest.yml':(365,'sha256:7aea506ac8fd7f9ccb578fa41c0bf8d5f17c543b1f5546d70682d41eb1841df3'),'LDPi-Workspace-Setup-2.0.3-x64.exe':(251773789,'sha256:198889044fc4ad2fb4c4eb68d10be518f1f074dbe523f889286ae88dfae115ce'),'LDPi-Workspace-Setup-2.0.3-x64.exe.blockmap':(262079,'sha256:35cf80521311c6f0a9e004b0189f787b0a28c2710ede42be2a9475af73c764e5')}
           def api(route, auth=True, method='GET', data=None):
               headers={'Accept':'application/vnd.github+json','User-Agent':'LDPi-release-retirement','X-GitHub-Api-Version':'2022-11-28'}
               if auth: headers['Authorization']='Bearer '+os.environ['GH_TOKEN']
@@ -34,7 +34,7 @@ jobs:
               req=urllib.request.Request('https://api.github.com/repos/'+REPO+route,data=body,headers=headers,method=method)
               with urllib.request.urlopen(req,timeout=120) as r: return json.load(r)
           current=api('/releases/latest',False)
-          assert current['id']==411491866 and current['tag_name']=='v2.0.2' and not current['draft'] and not current['prerelease']
+          assert current['id']==412959125 and current['tag_name']=='v2.0.3' and not current['draft'] and not current['prerelease']
           assert {a['name']:(a['size'],a['digest']) for a in current['assets']}==NEW
           selected=[api('/releases/'+str(i)) for i in OLD.values()]
           assert all(r['id']==OLD[r['tag_name']] and not r['immutable'] for r in selected)
@@ -49,7 +49,7 @@ jobs:
               if all(r['tag_name'] not in OLD for r in public): break
               time.sleep(10)
           assert all(r['tag_name'] not in OLD for r in public)
-          assert api('/releases/latest',False)['tag_name']=='v2.0.2'
+          assert api('/releases/latest',False)['tag_name']=='v2.0.3'
           for url in urls:
               req=urllib.request.Request(url,headers={'User-Agent':'LDPi-release-retirement'},method='HEAD')
               try:
@@ -57,6 +57,6 @@ jobs:
               except urllib.error.HTTPError as e:
                   assert e.code==404, (url,e.code)
           with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f:
-              f.write('# Public downloads verified\n\nOnly v2.0.2 remains published. The archived v2.0.1 release is unpublished as a writer-only draft, and all 3 old asset URLs returned 404 without authentication.\n\nThe new release and update files remain public and unchanged. Private backups were verified in LDPi-Workspace-backups before this run.\n')
-          print('COMPLETE: v2.0.1 hidden; 3 old download URLs return 404; v2.0.2 remains latest.',flush=True)
+              f.write('# Public downloads verified\n\nOnly v2.0.3 remains published. The archived v2.0.2 release is unpublished as a writer-only draft, and all 3 old asset URLs returned 404 without authentication.\n\nThe new release and update files remain public and unchanged. Private backups were verified in LDPi-Workspace-backups before this run.\n')
+          print('COMPLETE: v2.0.2 hidden; 3 old download URLs return 404; v2.0.3 remains latest.',flush=True)
           PY
