@@ -1,0 +1,62 @@
+name: Hide archived releases before v3.0.1
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: retire-old-ldpi-releases
+  cancel-in-progress: false
+jobs:
+  retire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Unpublish verified archived releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import os, json, urllib.request, urllib.error, time
+          REPO = 'sakohelv/LDPi-Workspace-releases'
+          assert os.environ['GITHUB_REPOSITORY'] == REPO
+          # Private backup run 39061106832 succeeded: 3 assets, 254486732 bytes.
+          # Manifest SHA256: 0e8941b24492984831de372295e7dff29b4f4fab7006d6cfcc592dc76d8a2a99
+          # Drafts are reversible and accessible only to repository writers.
+          # This workflow does not delete releases, tags or files.
+          OLD = {'v2.0.6':413682740}
+          NEW = {"LDPi-Workspace-Setup-3.0.1-x64.exe":[255992316,"sha256:e336f900d7b8d3711cc2e5d82d9d3324971ddd017dda852151b800a9e9a45802"],"LDPi-Workspace-Setup-3.0.1-x64.exe.blockmap":[265045,"sha256:bf7c2daf69af3ba1d750dd38aaa036649bdcb62a6d585867f64a1423f82b14e1"],"v3.yml":[365,"sha256:fe93820c4691a746613e732a212515b29a0ddfc8c507d3dd6f1a2b0d2c523f4c"],"SHA256SUMS.txt":[287,"sha256:21a9b72559825b0da8adff2e64afc1c25f7bd25a2a410b931d52d7961ec8a3de"]}
+          def api(route, auth=True, method='GET', data=None):
+              headers={'Accept':'application/vnd.github+json','User-Agent':'LDPi-release-retirement','X-GitHub-Api-Version':'2022-11-28'}
+              if auth: headers['Authorization']='Bearer '+os.environ['GH_TOKEN']
+              body=json.dumps(data).encode() if data is not None else None
+              if body is not None: headers['Content-Type']='application/json'
+              req=urllib.request.Request('https://api.github.com/repos/'+REPO+route,data=body,headers=headers,method=method)
+              with urllib.request.urlopen(req,timeout=120) as r: return json.load(r)
+          current=api('/releases/latest',False)
+          assert current['tag_name']=='v3.0.1' and not current['draft'] and not current['prerelease']
+          assert {a['name']:[a['size'],a['digest']] for a in current['assets']}==NEW
+          selected=[api('/releases/'+str(i)) for i in OLD.values()]
+          assert all(r['id']==OLD[r['tag_name']] and not r['immutable'] for r in selected)
+          urls=[a['browser_download_url'] for r in selected for a in r['assets']]
+          assert len(urls)==3
+          for release in selected:
+              result=api('/releases/'+str(release['id']),method='PATCH',data={'draft':True,'make_latest':'false'})
+              assert result['draft'] and result['id']==release['id']
+              print('Unpublished',release['tag_name'],flush=True)
+          for attempt in range(6):
+              public=api('/releases?per_page=100',False)
+              if all(r['tag_name'] not in OLD for r in public): break
+              time.sleep(10)
+          assert all(r['tag_name'] not in OLD for r in public)
+          assert [r['tag_name'] for r in public] == ['v3.0.1']
+          assert api('/releases/latest',False)['tag_name']=='v3.0.1'
+          for url in urls:
+              req=urllib.request.Request(url,headers={'User-Agent':'LDPi-release-retirement'},method='HEAD')
+              try:
+                  with urllib.request.urlopen(req,timeout=60) as r: raise AssertionError('Old public download still accessible: '+url)
+              except urllib.error.HTTPError as e:
+                  assert e.code==404, (url,e.code)
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f:
+              f.write('# Public downloads verified\n\nOnly v3.0.1 remains published. The archived v2.0.6 release is unpublished as a writer-only draft, and all 3 old asset URLs returned 404 without authentication.\n\nThe new release and update files remain public and unchanged. Private backups were verified in LDPi-Workspace-backups before this run.\n')
+          print('COMPLETE: v2.0.6 hidden; 3 old download URLs return 404; v3.0.1 remains latest.',flush=True)
+          PY
